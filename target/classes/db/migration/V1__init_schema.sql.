@@ -1,0 +1,101 @@
+CREATE TABLE IF NOT EXISTS usuario (
+    id_usuario       BIGSERIAL PRIMARY KEY,
+    nombre           VARCHAR(100)  NOT NULL,
+    apellidos        VARCHAR(100)  NOT NULL,
+    email            VARCHAR(150)  NOT NULL UNIQUE,
+    password_hash    VARCHAR(255)  NOT NULL,
+    fecha_nacimiento DATE,
+    sexo             CHAR(1)       CHECK (sexo IN ('M','F','O')),
+    altura_cm        INT           CHECK (altura_cm BETWEEN 50 AND 300),
+    fcm_token        VARCHAR(255),
+    activo           BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_at       TIMESTAMP     NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMP     NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tipo_parametro (
+    codigo      VARCHAR(50) PRIMARY KEY,
+    descripcion VARCHAR(100) NOT NULL,
+    unidad_std  VARCHAR(20)  NOT NULL,
+    rango_min   DECIMAL(7,2),
+    rango_max   DECIMAL(7,2)
+);
+
+INSERT INTO tipo_parametro VALUES
+    ('TENSION_SISTOLICA',  'Tensión arterial sistólica', 'mmHg',  60, 250),
+    ('TENSION_DIASTOLICA', 'Tensión arterial diastólica','mmHg',  40, 150),
+    ('GLUCEMIA',           'Glucemia en sangre',         'mg/dL', 40, 600),
+    ('PESO',               'Peso corporal',              'kg',    20, 300),
+    ('FC',                 'Frecuencia cardíaca',        'bpm',   30, 220),
+    ('SPO2',               'Saturación de oxígeno',      '%',     70, 100),
+    ('TEMPERATURA',        'Temperatura corporal',       '°C',    34, 43)
+ON CONFLICT (codigo) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS parametro_vital (
+    id_medicion     BIGSERIAL PRIMARY KEY,
+    id_usuario      BIGINT        NOT NULL,
+    tipo_parametro  VARCHAR(50)   NOT NULL,
+    valor           DECIMAL(7,2)  NOT NULL,
+    unidad          VARCHAR(20)   NOT NULL,
+    fecha_hora      TIMESTAMP     NOT NULL DEFAULT NOW(),
+    notas           VARCHAR(500),
+    estado_semaforo VARCHAR(10)   DEFAULT 'NORMAL',
+    created_at      TIMESTAMP     NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_pv_usuario FOREIGN KEY (id_usuario)
+        REFERENCES usuario(id_usuario) ON DELETE CASCADE,
+    CONSTRAINT fk_pv_tipo FOREIGN KEY (tipo_parametro)
+        REFERENCES tipo_parametro(codigo)
+);
+CREATE INDEX IF NOT EXISTS idx_pv_usuario_fecha
+    ON parametro_vital (id_usuario, fecha_hora DESC);
+
+CREATE TABLE IF NOT EXISTS cita_medica (
+    id_cita       BIGSERIAL PRIMARY KEY,
+    id_usuario    BIGINT        NOT NULL,
+    especialidad  VARCHAR(80)   NOT NULL,
+    nombre_medico VARCHAR(150),
+    centro_medico VARCHAR(200),
+    fecha_hora    TIMESTAMP     NOT NULL,
+    notas         VARCHAR(1000),
+    estado        VARCHAR(20)   NOT NULL DEFAULT 'PENDIENTE',
+    created_at    TIMESTAMP     NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMP     NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_cm_usuario FOREIGN KEY (id_usuario)
+        REFERENCES usuario(id_usuario) ON DELETE CASCADE,
+    CONSTRAINT chk_estado_cita CHECK (estado IN (
+        'PENDIENTE','CONFIRMADA','CANCELADA','COMPLETADA'))
+);
+CREATE INDEX IF NOT EXISTS idx_cm_usuario_estado_fecha
+    ON cita_medica (id_usuario, estado, fecha_hora);
+
+CREATE TABLE IF NOT EXISTS alerta (
+    id_alerta             BIGSERIAL PRIMARY KEY,
+    id_usuario            BIGINT        NOT NULL,
+    tipo_parametro        VARCHAR(50)   NOT NULL,
+    operador              VARCHAR(2)    NOT NULL,
+    valor_umbral          DECIMAL(7,2)  NOT NULL,
+    activa                BOOLEAN       NOT NULL DEFAULT TRUE,
+    mensaje_personalizado VARCHAR(300),
+    created_at            TIMESTAMP     NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_al_usuario FOREIGN KEY (id_usuario)
+        REFERENCES usuario(id_usuario) ON DELETE CASCADE,
+    CONSTRAINT chk_operador CHECK (operador IN ('>','>=','<','<=','='))
+);
+CREATE INDEX IF NOT EXISTS idx_alerta_usuario_activa
+    ON alerta (id_usuario, activa);
+
+CREATE TABLE IF NOT EXISTS medicacion (
+    id_medicacion      BIGSERIAL PRIMARY KEY,
+    id_usuario         BIGINT        NOT NULL,
+    nombre_medicamento VARCHAR(150)  NOT NULL,
+    dosis              DECIMAL(7,2)  NOT NULL,
+    unidad_dosis       VARCHAR(30)   NOT NULL,
+    frecuencia_horas   INT,
+    fecha_inicio       DATE          NOT NULL,
+    fecha_fin          DATE,
+    activo             BOOLEAN       NOT NULL DEFAULT TRUE,
+    notas              VARCHAR(500),
+    created_at         TIMESTAMP     NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_med_usuario FOREIGN KEY (id_usuario)
+        REFERENCES usuario(id_usuario) ON DELETE CASCADE
+);
