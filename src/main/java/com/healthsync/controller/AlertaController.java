@@ -1,5 +1,6 @@
 package com.healthsync.controller;
 
+import com.healthsync.dto.AlertaResponseDto;
 import com.healthsync.model.Alerta;
 import com.healthsync.repository.AlertaRepository;
 import com.healthsync.repository.UsuarioRepository;
@@ -20,22 +21,24 @@ public class AlertaController {
     private final UsuarioRepository usuarioRepo;
 
     @GetMapping
-    public ResponseEntity<List<Alerta>> getAlertas(
+    public ResponseEntity<List<AlertaResponseDto>> getAlertas(
             @AuthenticationPrincipal UserDetails user) {
         var usuario = usuarioRepo.findByEmail(user.getUsername()).orElseThrow();
+        List<Alerta> alertas = alertaRepo.findByUsuarioId(usuario.getId());
         return ResponseEntity.ok(
-            alertaRepo.findByUsuarioId(usuario.getId()));
+            alertas.stream().map(AlertaResponseDto::fromEntity).toList());
     }
 
     @PostMapping
-    public ResponseEntity<Alerta> crearAlerta(
+    public ResponseEntity<AlertaResponseDto> crearAlerta(
             @AuthenticationPrincipal UserDetails user,
             @RequestBody Alerta alerta) {
         var usuario = usuarioRepo.findByEmail(user.getUsername()).orElseThrow();
         alerta.setUsuario(usuario);
         alerta.setActiva(true);
+        Alerta guardada = alertaRepo.save(alerta);
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(alertaRepo.save(alerta));
+            .body(AlertaResponseDto.fromEntity(guardada));
     }
 
     @DeleteMapping("/{id}")
